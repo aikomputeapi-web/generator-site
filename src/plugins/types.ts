@@ -2,7 +2,7 @@ export interface PluginMetadata {
   id: string;
   name: string;
   description: string;
-  category: 'generator' | 'registration' | 'utility';
+  category: 'generator' | 'registration' | 'utility' | 'email';
   icon: string; // Dynamic icon name referencing a Lucide icon
 }
 

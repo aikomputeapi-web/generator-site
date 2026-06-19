@@ -4,6 +4,7 @@ import { PayStubGenerator } from './pay-stub';
 import { BusinessProfileGenerator } from './business-profile';
 import { AccountRegisterSuite } from './account-register';
 import { WellsFargoGenerator } from './wells-fargo';
+import { CatchallPlugin } from './catchall';
 
 export const plugins: ToolPlugin[] = [
   {
@@ -55,6 +56,16 @@ export const plugins: ToolPlugin[] = [
       icon: 'Cpu'
     },
     component: AccountRegisterSuite
+  },
+  {
+    metadata: {
+      id: 'catchall-email',
+      name: 'Catchall Email Manager',
+      description: 'Manage catchall email addresses, automate responses, and handle email processing with IMAP and SMTP.',
+      category: 'email',
+      icon: 'Mail'
+    },
+    component: CatchallPlugin
   }
 ];
 
