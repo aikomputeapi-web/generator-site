@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bank Statement Generator - Browser Edition</title>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+    <style>
+        :root {
+            --wf-red: #cd1409;
+            --wf-yellow: #ffcd00;
+            --wf-dark-red: #9b0000;
+            --bg-dark: #1a1a2e;
+            --bg-card: #16213e;
+            --text-light: #eaeaea;
+            --text-muted: #a0a0a0;
+            --border-color: #2a2a4a;
+            --success-green: #00c853;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #0f0f23 100%);
+            min-height: 100vh;
+            color: var(--text-light);
+            padding: 20px;
+        }
+
+        .container { max-width: 900px; margin: 0 auto; }
+
+        .header { text-align: center; margin-bottom: 30px; padding: 20px; }
+        .header h1 { font-size: 1.8rem; font-weight: 600; margin-bottom: 5px; }
+        .header p { color: var(--text-muted); font-size: 0.95rem; }
+
+        .loading-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(135deg, var(--bg-dark) 0%, #0f0f23 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-overlay.hidden { display: none; }
+
+        .loading-spinner {
+            width: 60px; height: 60px;
+            border: 4px solid var(--border-color);
+            border-top-color: var(--wf-red);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .loading-text { color: var(--text-light); font-size: 1.1rem; }
+        .loading-subtext { color: var(--text-muted); font-size: 0.9rem; margin-top: 10px; }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 20px; padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card-header h2 { font-size: 1.1rem; font-weight: 600; color: var(--wf-yellow); }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px; margin-bottom: 15px;
+        }
+
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label {
+            font-size: 0.8rem; color: var(--text-muted);
+            margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .form-group input, .form-group select {
+            padding: 12px 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-light);
+            font-size: 0.95rem;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none; border-color: var(--wf-yellow);
+        }
+
+        .btn {
+            padding: 12px 24px; border: none; border-radius: 8px;
+            font-size: 0.9rem; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--wf-red) 0%, var(--wf-dark-red) 100%);
+            color: white;
+        }
+
+        .btn-primary:hover { transform: translateY(-2px); }
+
+        .btn-mock {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white; font-size: 0.8rem; padding: 8px 16px;
+        }
+
+        .generate-section { text-align: center; padding: 30px; }
+        .generate-btn { font-size: 1.1rem; padding: 16px 48px; }
+
+        .result-card {
+            display: none;
+            background: linear-gradient(135deg, rgba(0, 200, 83, 0.1) 0%, rgba(0, 200, 83, 0.05) 100%);
+            border-color: var(--success-green);
+        }
+
+        .result-card.visible { display: block; animation: slideIn 0.3s ease; }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px; margin: 20px 0;
+        }
+
+        .stat-box {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px; border-radius: 8px; text-align: center;
+        }
+
+        .stat-box .value { font-size: 1.3rem; font-weight: 700; color: var(--success-green); }
+        .stat-box .label { font-size: 0.75rem; color: var(--text-muted); margin-top: 5px; }
+
+        .download-btn {
+            background: linear-gradient(135deg, var(--success-green) 0%, #00a843 100%);
+            color: white; text-decoration: none; margin: 5px;
+        }
+
+        .money-input { position: relative; }
+        .money-input::before {
+            content: '$'; position: absolute; left: 15px; top: 50%;
+            transform: translateY(-50%); color: var(--text-muted); z-index: 1;
+        }
+        .money-input input { padding-left: 30px; }
+
+        .period-toggle {
+            display: grid; grid-template-columns: repeat(4, 1fr);
+            gap: 8px; margin-bottom: 15px;
+        }
+
+        .period-toggle button {
+            padding: 10px 8px;
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            border-radius: 8px; cursor: pointer; font-size: 0.85rem;
+        }
+
+        .period-toggle button.active {
+            background: var(--wf-red); color: white; border-color: var(--wf-red);
+        }
+
+        .browser-notice {
+            background: rgba(255, 205, 0, 0.1);
+            border: 1px solid var(--wf-yellow);
+            color: var(--wf-yellow);
+            padding: 15px; border-radius: 8px;
+            margin-bottom: 20px; text-align: center;
+        }
+
+        .error-message {
+            background: rgba(255, 0, 0, 0.1);
+            border: 1px solid #ff4444;
+            color: #ff6666;
+            padding: 15px; border-radius: 8px;
+            margin-top: 15px; display: none;
+        }
+
+        .error-message.visible { display: block; }
+
+        .downloads-list {
+            display: flex; flex-wrap: wrap; justify-content: center;
+            gap: 10px; margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loading-overlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading Python Environment...</div>
+        <div class="loading-subtext" id="loading-status">Initializing Pyodide...</div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1>🏦 Bank Statement Generator</h1>
+            <p>Generate realistic bank statements entirely in your browser</p>
+        </div>
+
+        <div class="browser-notice">
+            ⚡ This app runs entirely in your browser using Python (Pyodide). No server required!
+            <br><small>Note: First load may take 30-60 seconds to download Python packages.</small>
+        </div>
+
+        <!-- Account Holder -->
+        <div class="card">
+            <div class="card-header">
+                <h2>👤 Account Holder</h2>
+                <button class="btn btn-mock" onclick="generateMockData()">🎲 Fill with Mock Data</button>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>Full Name</label>
+                    <input type="text" id="name" placeholder="JOHN DOE">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>Street Address</label>
+                    <input type="text" id="street" placeholder="123 MAIN ST APT 4">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>City</label>
+                    <input type="text" id="city" value="SAN JOSE">
+                </div>
+                <div class="form-group">
+                    <label>State</label>
+                    <input type="text" id="state" value="CA" maxlength="2">
+                </div>
+                <div class="form-group">
+                    <label>ZIP Code</label>
+                    <input type="text" id="zip" value="95110" maxlength="10">
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Info -->
+        <div class="card">
+            <div class="card-header">
+                <h2>🔢 Account Information</h2>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Account Number</label>
+                    <input type="text" id="account_number" value="">
+                </div>
+                <div class="form-group">
+                    <label>Routing Number</label>
+                    <input type="text" id="routing_number" value="121042882">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label>Account Type</label>
+                    <select id="account_type">
+                        <option value="Wells Fargo Everyday Checking">Wells Fargo Everyday Checking</option>
+                        <option value="Wells Fargo Business Checking">Wells Fargo Business Checking</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Statement Period -->
+        <div class="card">
+            <div class="card-header">
+                <h2>📅 Statement Period</h2>
+            </div>
+            <div class="period-toggle">
+                <button id="btn-1month" class="active" onclick="setPeriodMode('1month')">1 Month</button>
+                <button id="btn-2months" onclick="setPeriodMode('2months')">2 Months</button>
+                <button id="btn-3months" onclick="setPeriodMode('3months')">3 Months</button>
+                <button id="btn-manual" onclick="setPeriodMode('manual')">Custom</button>
+            </div>
+            <div class="form-row" id="date-fields" style="display: none;">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="start_date">
+                </div>
+                <div class="form-group">
+                    <label>End Date</label>
+                    <input type="date" id="end_date">
+                </div>
+            </div>
+        </div>
+
+        <!-- Business Profile -->
+        <div class="card">
+            <div class="card-header">
+                <h2>💼 Business Profile</h2>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Monthly Revenue</label>
+                    <div class="money-input">
+                        <input type="text" id="monthly_revenue" value="100,000" oninput="formatMoney(this)">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Business Type</label>
+                    <select id="business_type">
+                        <option value="retail">Retail</option>
+                        <option value="restaurant">Restaurant</option>
+                        <option value="service">Service</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Starting Balance (Min)</label>
+                    <div class="money-input">
+                        <input type="text" id="starting_balance_min" value="15,000" oninput="formatMoney(this)">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Starting Balance (Max)</label>
+                    <div class="money-input">
+                        <input type="text" id="starting_balance_max" value="50,000" oninput="formatMoney(this)">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Generate Button -->
+        <div class="card generate-section">
+            <button class="btn btn-primary generate-btn" onclick="generateStatement()" id="generate-btn">
+                📄 Generate Statement
+            </button>
+            <div class="error-message" id="error-message"></div>
+        </div>
+
+        <!-- Result Card -->
+        <div class="card result-card" id="result-card">
+            <div class="card-header">
+                <h2>✅ Statement Generated Successfully!</h2>
+            </div>
+            <div class="result-summary" id="result-summary"></div>
+            <div class="downloads-list" id="downloads-list"></div>
+        </div>
+    </div>
+
+    <!-- Python code stored separately to avoid JS template literal issues -->
+    <script id="python-code" type="text/plain">
+import random
+from datetime import date, timedelta
+import calendar
+from io import BytesIO
+import base64
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
+from reportlab.lib.enums import TA_LEFT, TA_RIGHT, TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, HRFlowable
+from faker import Faker
+
+fake = Faker()
+
+# Wells Fargo colors
+WF_RED = colors.Color(0.8, 0.0, 0.0)
+WF_YELLOW = colors.Color(1.0, 0.8, 0.0)
+LINK_BLUE = colors.Color(0.0, 0.0, 0.8)
+
+# Wells Fargo logo as base64
+LOGO_BASE64 = "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"
+
+DEPOSIT_TEMPLATES = [
+    ("ATM Cash Deposit", (500, 3000)),
+    ("POS Deposit", (800, 5000)),
+    ("Square Inc Deposit", (1500, 8000)),
+    ("Stripe Transfer", (2000, 10000)),
+    ("PayPal Transfer", (500, 3000)),
+    ("Credit Card Settlement", (2000, 8000)),
+    ("Mobile Deposit", (200, 1500)),
+]
+
+WITHDRAWAL_TEMPLATES = [
+    ("Purchase authorized", (100, 2500)),
+    ("ACH Debit", (500, 5000)),
+    ("ADP Payroll", (3000, 8000)),
+    ("Rent Payment", (3000, 8000)),
+    ("PGE Payment", (150, 500)),
+    ("Verizon Business", (100, 300)),
+    ("Amazon Business", (50, 500)),
+    ("Progressive Insurance", (200, 500)),
+]
+
+LOCATIONS = ["San Jose CA", "Santa Clara CA", "Sunnyvale CA", "Mountain View CA", "Cupertino CA"]
+
+def generate_mock_person():
+    streets = ["123 MAIN ST", "456 OAK AVE", "789 MAPLE DR", "1010 TECH BLVD"]
+    cities = [("SAN JOSE", "CA", "95110"), ("SANTA CLARA", "CA", "95050"), ("SUNNYVALE", "CA", "94086")]
+    name = fake.name().upper()
+    street = random.choice(streets)
+    city, state, zip_code = random.choice(cities)
+    return {"name": name, "street": street, "city": city, "state": state, "zip": zip_code}
+
+def get_month_range(year, month):
+    first_day = date(year, month, 1)
+    last_day = date(year, month, calendar.monthrange(year, month)[1])
+    return first_day, last_day
+
+def get_previous_months(num_months):
+    today = date.today()
+    if today.month == 1:
+        year, month = today.year - 1, 12
+    else:
+        year, month = today.year, today.month - 1
+    
+    months = []
+    for i in range(num_months):
+        first_day, last_day = get_month_range(year, month)
+        months.append((first_day, last_day))
+        if month == 1:
+            year -= 1
+            month = 12
+        else:
+            month -= 1
+    return list(reversed(months))
+
+def generate_transactions(start_date, end_date, monthly_revenue, starting_balance):
+    transactions = []
+    days = (end_date - start_date).days
+    months = max(1, days / 30)
+    
+    target_revenue = monthly_revenue * months
+    current_total = 0
+    while current_total < target_revenue * 0.95:
+        template, (min_amt, max_amt) = random.choice(DEPOSIT_TEMPLATES)
+        remaining = target_revenue - current_total
+        max_amt = min(max_amt, remaining * 0.3)
+        if max_amt < min_amt:
+            break
+        amount = round(random.uniform(min_amt, max_amt), 2)
+        days_offset = random.randint(0, days)
+        txn_date = start_date + timedelta(days=days_offset)
+        location = random.choice(LOCATIONS)
+        transactions.append({
+            'date': txn_date,
+            'description': template + " " + location,
+            'amount': amount,
+            'type': 'deposit'
+        })
+        current_total += amount
+    
+    expense_ratio = random.uniform(0.70, 0.85)
+    target_expenses = monthly_revenue * months * expense_ratio
+    current_expenses = 0
+    while current_expenses < target_expenses * 0.95:
+        template, (min_amt, max_amt) = random.choice(WITHDRAWAL_TEMPLATES)
+        remaining = target_expenses - current_expenses
+        max_amt = min(max_amt, remaining * 0.2)
+        if max_amt < min_amt:
+            break
+        amount = round(random.uniform(min_amt, max_amt), 2)
+        days_offset = random.randint(0, days)
+        txn_date = start_date + timedelta(days=days_offset)
+        transactions.append({
+            'date': txn_date,
+            'description': template,
+            'amount': amount,
+            'type': 'withdrawal'
+        })
+        current_expenses += amount
+    
+    transactions.sort(key=lambda t: t['date'])
+    balance = starting_balance
+    for txn in transactions:
+        if txn['type'] == 'deposit':
+            balance += txn['amount']
+        else:
+            balance -= txn['amount']
+        txn['balance'] = round(balance, 2)
+    
+    return transactions, balance
+
+def format_money(amount):
+    return "${:,.2f}".format(amount)
+
+def init_styles():
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle('StatementTitle', parent=styles['Heading1'], fontSize=16, textColor=colors.black, spaceAfter=6, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle('SectionHeader', parent=styles['Heading2'], fontSize=11, textColor=colors.black, spaceBefore=12, spaceAfter=6, fontName='Helvetica-Bold'))
+    styles.add(ParagraphStyle('StatementBody', parent=styles['Normal'], fontSize=8, leading=10, fontName='Helvetica'))
+    styles.add(ParagraphStyle('SmallText', parent=styles['Normal'], fontSize=7, leading=9, fontName='Helvetica'))
+    styles.add(ParagraphStyle('RedText', parent=styles['Normal'], fontSize=9, textColor=WF_RED, fontName='Helvetica-Bold'))
+    return styles
+
+def build_header(account_type, end_date, page_num, total_pages, styles):
+    title = Paragraph(account_type, styles['StatementTitle'])
+    date_text = Paragraph(end_date.strftime('%B %d, %Y') + " - Page " + str(page_num) + " of " + str(total_pages), styles['StatementBody'])
+    
+    # Wells Fargo logo as colored table (Pyodide/PIL has image limitations)
+    logo_table = Table([['WELLS', 'FARGO']], colWidths=[0.5*inch, 0.5*inch], rowHeights=[0.4*inch])
+    logo_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (0, 0), WF_RED),
+        ('BACKGROUND', (1, 0), (1, 0), WF_YELLOW),
+        ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+        ('TEXTCOLOR', (1, 0), (1, 0), WF_RED),
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]))
+    
+    header_data = [[[title, date_text], logo_table]]
+    header = Table(header_data, colWidths=[6*inch, 1.5*inch])
+    header.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+    ]))
+    return header
+
+def build_questions_section(styles):
+    elements = []
+    elements.append(Paragraph("<b>Questions?</b>", styles['RedText']))
+    elements.append(Spacer(1, 0.1*inch))
+    contact_text = """<font color="red"><b>Available by phone</b></font> 24 hours a day, 7 days a week:<br/>
+    We accept all relay calls, including 711<br/>
+    <b>1-800-TO-WELLS</b> (1-800-869-3557)<br/>
+    <font color="red"><b>En espanol:</b></font> 1-877-727-2932<br/><br/>
+    <font color="red"><b>Online:</b></font> wellsfargo.com<br/><br/>
+    <font color="red"><b>Write:</b></font> Wells Fargo Bank, N.A. (347)<br/>
+    P.O. Box 6995<br/>
+    Portland, OR 97228-6995"""
+    elements.append(Paragraph(contact_text, styles['SmallText']))
+    return elements
+
+def build_you_and_wells_fargo(styles):
+    elements = []
+    elements.append(Paragraph("<b>You and Wells Fargo</b>", styles['SectionHeader']))
+    text = "Thank you for being a loyal Wells Fargo customer. We value your trust in our company and look forward to continuing to serve you with your financial needs."
+    elements.append(Paragraph(text, styles['SmallText']))
+    return elements
+
+def build_account_options(styles):
+    elements = []
+    elements.append(Paragraph("<b>Account options</b>", styles['SectionHeader']))
+    intro = "A check mark in the box indicates you have these convenient services with your account(s). Go to wellsfargo.com or call the number above if you have questions or if you would like to add new services."
+    elements.append(Paragraph(intro, styles['SmallText']))
+    elements.append(Spacer(1, 0.1*inch))
+    
+    options = [
+        ['- Online Banking', '- Direct Deposit'],
+        ['- Online Bill Pay', '- Auto Transfer/Payment'],
+        ['- Online Statements', '- Overdraft Protection'],
+        ['- Mobile Banking', '- Debit Card'],
+        ['- My Spending Report', '- Overdraft Service'],
+    ]
+    opt_table = Table(options, colWidths=[1.8*inch, 1.8*inch])
+    opt_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    ]))
+    elements.append(opt_table)
+    return elements
+
+def build_activity_summary(start_date, end_date, starting_balance, total_deposits, total_withdrawals, ending_balance, styles):
+    elements = []
+    elements.append(Paragraph("<b>Statement period activity summary</b>", styles['SectionHeader']))
+    
+    summary_data = [
+        ['Beginning balance on ' + start_date.strftime("%m/%d"), format_money(starting_balance)],
+        ['Deposits/Additions', format_money(total_deposits)],
+        ['Withdrawals/Subtractions', '- ' + format_money(total_withdrawals)],
+        ['Ending balance on ' + end_date.strftime("%m/%d"), format_money(ending_balance)],
+    ]
+    summary_table = Table(summary_data, colWidths=[2.2*inch, 1*inch])
+    summary_table.setStyle(TableStyle([
+        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('ALIGN', (1, 0), (1, -1), 'RIGHT'),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('LINEABOVE', (0, -1), (-1, -1), 0.5, colors.black),
+    ]))
+    elements.append(summary_table)
+    return elements
+
+def build_account_info(account_number, name, routing_number, styles):
+    elements = []
+    elements.append(Spacer(1, 0.2*inch))
+    elements.append(Paragraph("<font color='red'><b>Account number:</b></font>      " + account_number, styles['SmallText']))
+    elements.append(Spacer(1, 0.05*inch))
+    elements.append(Paragraph(name, styles['StatementBody']))
+    elements.append(Spacer(1, 0.1*inch))
+    elements.append(Paragraph("<i>New Jersey account terms and conditions apply.</i>", styles['SmallText']))
+    elements.append(Spacer(1, 0.2*inch))
+    elements.append(Paragraph("<b>For Direct Deposit use</b>", styles['StatementBody']))
+    elements.append(Paragraph("<b>Routing Number (RTN):</b>      " + routing_number, styles['SmallText']))
+    return elements
+
+def build_overdraft_section(styles):
+    elements = []
+    elements.append(Spacer(1, 0.1*inch))
+    elements.append(Paragraph("<b>Overdraft Protection</b>", styles['StatementBody']))
+    text = "This account is not currently covered by Overdraft Protection. If you would like more information regarding Overdraft Protection and eligibility requirements, please call the number listed on your statement or visit your Wells Fargo branch."
+    elements.append(Paragraph(text, styles['SmallText']))
+    return elements
+
+def generate_pdf(name, street, city, state, zip_code, account_number, routing_number, 
+                 account_type, start_date, end_date, transactions, starting_balance):
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, leftMargin=0.5*inch, rightMargin=0.5*inch,
+                           topMargin=0.5*inch, bottomMargin=0.5*inch)
+    
+    styles = init_styles()
+    story = []
+    
+    total_deposits = sum(t['amount'] for t in transactions if t['type'] == 'deposit')
+    total_withdrawals = sum(t['amount'] for t in transactions if t['type'] == 'withdrawal')
+    ending_balance = starting_balance + total_deposits - total_withdrawals
+    
+    # Calculate total pages (estimate)
+    txn_per_page = 35
+    total_pages = 1 + max(1, (len(transactions) + txn_per_page - 1) // txn_per_page)
+    
+    # PAGE 1: Summary
+    story.append(build_header(account_type, end_date, 1, total_pages, styles))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Customer info and Questions
+    customer_info = []
+    customer_info.append(Spacer(1, 0.3*inch))
+    customer_info.append(Paragraph(name, styles['StatementBody']))
+    customer_info.append(Paragraph(street, styles['StatementBody']))
+    customer_info.append(Paragraph(city + " " + state + " " + zip_code, styles['StatementBody']))
+    
+    questions = build_questions_section(styles)
+    
+    header_table = Table([[customer_info, questions]], colWidths=[3.5*inch, 4*inch])
+    header_table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    story.append(header_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # You and Wells Fargo + Account Options
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
+    story.append(Spacer(1, 0.1*inch))
+    
+    left_fargo = build_you_and_wells_fargo(styles)
+    right_options = build_account_options(styles)
+    
+    middle_table = Table([[left_fargo, right_options]], colWidths=[3.5*inch, 4*inch])
+    middle_table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    story.append(middle_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Summary + Account Info
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
+    story.append(Spacer(1, 0.1*inch))
+    
+    left_summary = build_activity_summary(start_date, end_date, starting_balance, total_deposits, total_withdrawals, ending_balance, styles)
+    right_account = build_account_info(account_number, name, routing_number, styles)
+    
+    summary_table = Table([[left_summary, right_account]], colWidths=[3.5*inch, 4*inch])
+    summary_table.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'TOP')]))
+    story.append(summary_table)
+    story.append(Spacer(1, 0.2*inch))
+    
+    # Overdraft
+    story.append(HRFlowable(width="100%", thickness=0.5, color=colors.lightgrey))
+    story.extend(build_overdraft_section(styles))
+    
+    # PAGE 2+: Transactions
+    story.append(PageBreak())
+    story.append(build_header(account_type, end_date, 2, total_pages, styles))
+    story.append(Spacer(1, 0.2*inch))
+    story.append(Paragraph("<b>Transaction history</b>", styles['SectionHeader']))
+    story.append(Spacer(1, 0.1*inch))
+    
+    table_data = [['Date', 'Description', 'Deposits', 'Withdrawals', 'Ending daily balance']]
+    for txn in transactions:
+        row = [
+            txn['date'].strftime('%m/%d'),
+            txn['description'][:45],
+            "{:,.2f}".format(txn['amount']) if txn['type'] == 'deposit' else '',
+            "{:,.2f}".format(txn['amount']) if txn['type'] == 'withdrawal' else '',
+            "{:,.2f}".format(txn['balance'])
+        ]
+        table_data.append(row)
+    
+    # Totals row
+    table_data.append(['', 'Ending balance on ' + end_date.strftime("%m/%d"), 
+                       "{:,.2f}".format(total_deposits), 
+                       "{:,.2f}".format(total_withdrawals),
+                       format_money(ending_balance)])
+    
+    txn_table = Table(table_data, colWidths=[0.5*inch, 3.3*inch, 0.9*inch, 0.9*inch, 1.1*inch], repeatRows=1)
+    txn_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.95, 0.95, 0.95)),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('LINEBELOW', (0, 0), (-1, 0), 0.5, colors.black),
+        ('LINEABOVE', (0, -1), (-1, -1), 0.5, colors.black),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('TOPPADDING', (0, 0), (-1, -1), 2),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ]))
+    story.append(txn_table)
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    return {
+        'pdf_base64': base64.b64encode(buffer.getvalue()).decode('utf-8'),
+        'beginning_balance': starting_balance,
+        'total_deposits': total_deposits,
+        'total_withdrawals': total_withdrawals,
+        'ending_balance': ending_balance,
+        'transaction_count': len(transactions)
+    }
+    </script>
+
+    <script>
+        let pyodide = null;
+        let periodMode = '1month';
+
+        async function initPyodide() {
+            const status = document.getElementById('loading-status');
+            
+            try {
+                status.textContent = 'Loading Pyodide runtime...';
+                pyodide = await loadPyodide();
+                
+                status.textContent = 'Installing required packages...';
+                await pyodide.loadPackage(['micropip']);
+                
+                const micropip = pyodide.pyimport('micropip');
+                
+                status.textContent = 'Installing reportlab...';
+                await micropip.install('reportlab');
+                
+                status.textContent = 'Installing faker...';
+                await micropip.install('faker');
+                
+                status.textContent = 'Setting up generator...';
+                
+                // Get Python code from hidden script tag
+                const pythonCode = document.getElementById('python-code').textContent;
+                await pyodide.runPythonAsync(pythonCode);
+                
+                // Generate random account number
+                document.getElementById('account_number').value = Math.floor(1000000000 + Math.random() * 9000000000);
+                
+                // Hide loading overlay
+                document.getElementById('loading-overlay').classList.add('hidden');
+            } catch (error) {
+                status.textContent = 'Error: ' + error.message;
+                console.error('Pyodide init error:', error);
+            }
+        }
+
+        function setPeriodMode(mode) {
+            periodMode = mode;
+            document.querySelectorAll('.period-toggle button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('btn-' + mode).classList.add('active');
+            document.getElementById('date-fields').style.display = mode === 'manual' ? 'grid' : 'none';
+        }
+
+        function formatMoney(input) {
+            let value = input.value.replace(/[^\d]/g, '');
+            if (value) value = parseInt(value).toLocaleString('en-US');
+            input.value = value;
+        }
+
+        function parseMoney(value) {
+            return parseFloat(value.replace(/,/g, '')) || 0;
+        }
+
+        async function generateMockData() {
+            const result = await pyodide.runPythonAsync('generate_mock_person()');
+            const data = result.toJs();
+            document.getElementById('name').value = data.get('name');
+            document.getElementById('street').value = data.get('street');
+            document.getElementById('city').value = data.get('city');
+            document.getElementById('state').value = data.get('state');
+            document.getElementById('zip').value = data.get('zip');
+        }
+
+        async function generateStatement() {
+            const btn = document.getElementById('generate-btn');
+            const errorEl = document.getElementById('error-message');
+            const resultCard = document.getElementById('result-card');
+            
+            resultCard.classList.remove('visible');
+            errorEl.classList.remove('visible');
+            btn.textContent = '⏳ Generating...';
+            btn.disabled = true;
+
+            try {
+                const formData = {
+                    name: document.getElementById('name').value.toUpperCase(),
+                    street: document.getElementById('street').value.toUpperCase(),
+                    city: document.getElementById('city').value.toUpperCase(),
+                    state: document.getElementById('state').value.toUpperCase(),
+                    zip: document.getElementById('zip').value,
+                    account_number: document.getElementById('account_number').value,
+                    routing_number: document.getElementById('routing_number').value,
+                    account_type: document.getElementById('account_type').value,
+                    monthly_revenue: parseMoney(document.getElementById('monthly_revenue').value),
+                    starting_balance_min: parseMoney(document.getElementById('starting_balance_min').value),
+                    starting_balance_max: parseMoney(document.getElementById('starting_balance_max').value),
+                };
+
+                let numMonths = 1;
+                if (periodMode === '2months') numMonths = 2;
+                else if (periodMode === '3months') numMonths = 3;
+
+                const results = [];
+                let currentBalance = formData.starting_balance_min + Math.random() * (formData.starting_balance_max - formData.starting_balance_min);
+
+                for (let i = 0; i < numMonths; i++) {
+                    // Build Python code without template literals containing ${}
+                    const pythonGenCode = [
+                        'months = get_previous_months(' + numMonths + ')',
+                        'start_date, end_date = months[' + i + ']',
+                        'transactions, ending_balance = generate_transactions(start_date, end_date, ' + formData.monthly_revenue + ', ' + currentBalance + ')',
+                        'result = generate_pdf("' + formData.name + '", "' + formData.street + '", "' + formData.city + '", "' + formData.state + '", "' + formData.zip + '", "' + formData.account_number + '", "' + formData.routing_number + '", "' + formData.account_type + '", start_date, end_date, transactions, ' + currentBalance + ')',
+                        'result["period"] = start_date.strftime("%B %Y")',
+                        'result["ending_balance_raw"] = ending_balance',
+                        'result'
+                    ].join('\n');
+                    
+                    const result = await pyodide.runPythonAsync(pythonGenCode);
+                    const data = result.toJs();
+                    currentBalance = data.get('ending_balance_raw');
+                    results.push({
+                        pdf_base64: data.get('pdf_base64'),
+                        period: data.get('period'),
+                        beginning_balance: data.get('beginning_balance'),
+                        total_deposits: data.get('total_deposits'),
+                        total_withdrawals: data.get('total_withdrawals'),
+                        ending_balance: data.get('ending_balance'),
+                        transaction_count: data.get('transaction_count')
+                    });
+                }
+
+                let summaryHtml = '';
+                let downloadsHtml = '';
+                
+                if (results.length === 1) {
+                    const r = results[0];
+                    summaryHtml = '<div class="stat-box"><div class="value">$' + r.beginning_balance.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</div><div class="label">Beginning Balance</div></div>' +
+                        '<div class="stat-box"><div class="value">$' + r.total_deposits.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</div><div class="label">Total Deposits</div></div>' +
+                        '<div class="stat-box"><div class="value">$' + r.total_withdrawals.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</div><div class="label">Total Withdrawals</div></div>' +
+                        '<div class="stat-box"><div class="value">$' + r.ending_balance.toLocaleString('en-US', {minimumFractionDigits: 2}) + '</div><div class="label">Ending Balance</div></div>' +
+                        '<div class="stat-box"><div class="value">' + r.transaction_count + '</div><div class="label">Transactions</div></div>';
+                } else {
+                    let totalTxns = 0;
+                    for (let j = 0; j < results.length; j++) {
+                        totalTxns += results[j].transaction_count;
+                    }
+                    summaryHtml = '<div class="stat-box"><div class="value">' + results.length + '</div><div class="label">Statements</div></div>' +
+                        '<div class="stat-box"><div class="value">' + totalTxns + '</div><div class="label">Total Transactions</div></div>';
+                }
+                
+                for (let k = 0; k < results.length; k++) {
+                    const r = results[k];
+                    downloadsHtml += '<a href="data:application/pdf;base64,' + r.pdf_base64 + '" download="statement_' + r.period.replace(' ', '_') + '.pdf" class="btn download-btn">📥 ' + r.period + '</a>';
+                }
+                
+                document.getElementById('result-summary').innerHTML = summaryHtml;
+                document.getElementById('downloads-list').innerHTML = downloadsHtml;
+                resultCard.classList.add('visible');
+
+            } catch (error) {
+                errorEl.textContent = 'Error: ' + error.message;
+                errorEl.classList.add('visible');
+                console.error(error);
+            }
+
+            btn.textContent = '📄 Generate Statement';
+            btn.disabled = false;
+        }
+
+        // Initialize on page load
+        initPyodide();
+    </script>
+</body>
+</html>
