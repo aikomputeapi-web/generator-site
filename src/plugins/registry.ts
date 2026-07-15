@@ -4,7 +4,8 @@ import { PayStubGenerator } from './pay-stub';
 import { BusinessProfileGenerator } from './business-profile';
 import { AccountRegisterSuite } from './account-register';
 import { WellsFargoGenerator } from './wells-fargo';
-import { CatchallPlugin } from './catchall';
+import { TaxDocumentGenerator } from './tax-gen';
+import { Pdf417Generator } from './pdf417-gen';
 
 export const plugins: ToolPlugin[] = [
   {
@@ -49,6 +50,26 @@ export const plugins: ToolPlugin[] = [
   },
   {
     metadata: {
+      id: 'tax-doc-gen',
+      name: 'Tax Document Generator',
+      description: 'Generate IRS Form W-2 and Form 1040 tax documents with full IRS-layout fidelity and PDF export.',
+      category: 'generator',
+      icon: 'Receipt'
+    },
+    component: TaxDocumentGenerator
+  },
+  {
+    metadata: {
+      id: 'pdf417-gen',
+      name: 'PDF417 Barcode Generator',
+      description: 'Generate AAMVA standard PDF417 2D barcodes for driver licenses and ID cards.',
+      category: 'generator',
+      icon: 'QrCode'
+    },
+    component: Pdf417Generator
+  },
+  {
+    metadata: {
       id: 'account-registration-suite',
       name: 'Account Registration Suite',
       description: 'Run automated platform script loaders, monitor runner status, and inspect real-time logs.',
@@ -56,16 +77,6 @@ export const plugins: ToolPlugin[] = [
       icon: 'Cpu'
     },
     component: AccountRegisterSuite
-  },
-  {
-    metadata: {
-      id: 'catchall-email',
-      name: 'Catchall Email Manager',
-      description: 'Manage catchall email addresses, automate responses, and handle email processing with IMAP and SMTP.',
-      category: 'email',
-      icon: 'Mail'
-    },
-    component: CatchallPlugin
   }
 ];
 
