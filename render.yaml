@@ -1,0 +1,27 @@
+# Render Blueprint — generator-site
+# Deploy: render blueprints apply ./render.yaml
+# Multi-runtime stack (nginx + Node Express + Python Flask) runs in a single
+# Docker image coordinated by supervisord. See Dockerfile + supervisord.conf.
+services:
+  - type: web
+    name: generator-site
+    runtime: docker
+    repo: https://github.com/aikomputeapi-web/generator-site
+    branch: master
+    plan: starter
+    region: oregon
+    autoDeploy: true
+    healthCheckPath: /api/health
+    dockerContext: .
+    dockerfilePath: ./Dockerfile
+    envVars:
+      # Gemini key for the LLM transaction generator (kept server-side only).
+      - key: GEMINI_API_KEY
+        sync: false   # secret — set via dashboard, not stored in repo
+      - key: NODE_ENV
+        value: production
+      # Google Sign-In (optional — set via dashboard if you use OAuth)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
