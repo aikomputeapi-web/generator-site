@@ -45,7 +45,7 @@ ENV NODE_ENV=production \
 
 # Runtime system packages: nginx + supervisord + python runtime + fonts for ReportLab
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nginx supervisor unzip \
+    nginx supervisor unzip gettext-base \
     python3 python3-venv python3-minimal \
     fonts-liberation fonts-dejavu fonts-freefont-ttf \
     libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxkbcommon0 \
