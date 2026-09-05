@@ -76,6 +76,12 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Wire supervisord
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
+# Entrypoint templates nginx.conf with Render's $PORT at startup
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+# Render routes HTTP to $PORT; nginx binds it (templated in entrypoint.sh).
+# 80 is kept as a fallback for local `docker run -p 80:80`.
 EXPOSE 80
 
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+CMD ["/app/entrypoint.sh"]

@@ -13,7 +13,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+// Render routes public HTTP to process.env.PORT (e.g. 10000), which nginx binds.
+// Express must bind a DIFFERENT internal port so nginx can proxy to it without
+// collision. Use INTERNAL_PORT (default 5000); fall back to PORT only when no
+// nginx layer is present (local dev without Docker).
+const PORT = process.env.INTERNAL_PORT || process.env.PORT || 5000;
 
 app.use(cors());
 app.use(express.json());
