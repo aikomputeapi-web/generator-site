@@ -17,7 +17,7 @@ from faker import Faker
 
 from src.models import (
     AccountHolder, AccountInfo, Address, BankStatement,
-    StatementPeriod, StatementSummary
+    StatementPeriod, StatementSummary, Transaction, TransactionType
 )
 from src.transaction_gen import TransactionGenerator
 from src.pdf_generator import StatementPDFGenerator
@@ -330,6 +330,148 @@ def download_file(filename):
     if filepath.exists():
         return send_file(filepath, as_attachment=True)
     return jsonify({'error': 'File not found'}), 404
+
+
+@app.route('/generate-statement-from-transactions', methods=['POST'])
+def generate_statement_from_transactions():
+    """Generate a statement from a caller-supplied list of transactions.
+
+    Used by the UI's LLM transaction generator: the React app posts the
+    holder/account/period plus an array of {date,description,type,amount}
+    rows (produced by Gemini via the Node /api/llm/generate-transactions
+    endpoint) and this route renders the PDF directly — bypassing the
+    algorithmic TransactionGenerator.
+    """
+    try:
+        data = request.json or {}
+
+        raw_txns = data.get('transactions') or []
+        if not raw_txns:
+            return jsonify({'success': False, 'error': 'No transactions provided.'}), 400
+
+        # Reuse the same holder/account construction as the standard route.
+        address = Address(
+            street=data['street'].upper(),
+            city=data['city'].upper(),
+            state=data['state'].upper(),
+            zip_code=data['zip']
+        )
+        account_holder = AccountHolder(name=data['name'].upper(), address=address)
+        account_info = AccountInfo(
+            account_number=data['account_number'],
+            routing_number=data['routing_number'],
+            account_type=data['account_type']
+        )
+
+        # Period: manual dates, or derive from anchor month.
+        period_mode = data.get('period_mode', 'manual')
+        anchor_year = int(data['anchor_year']) if data.get('anchor_year') else None
+        anchor_month = int(data['anchor_month']) if data.get('anchor_month') else None
+
+        if period_mode == '1month':
+            periods = get_previous_months(1, anchor_year, anchor_month)
+        elif period_mode == '2months':
+            periods = get_previous_months(2, anchor_year, anchor_month)
+        elif period_mode == '3months':
+            periods = get_previous_months(3, anchor_year, anchor_month)
+        elif period_mode == '90days':
+            if anchor_year and anchor_month:
+                _, end_date = get_month_range(anchor_year, anchor_month)
+            else:
+                end_date = date.today()
+            start_date = end_date - timedelta(days=90)
+            periods = [(start_date, end_date)]
+        else:  # manual
+            start_date = datetime.strptime(data['start_date'], '%Y-%m-%d').date()
+            end_date = datetime.strptime(data['end_date'], '%Y-%m-%d').date()
+            periods = [(start_date, end_date)]
+
+        # Starting balance: caller may pass one, else fall back to the
+        # min/max random range used by the standard route.
+        starting_balance = data.get('starting_balance')
+        if starting_balance is None:
+            smin = float(data.get('starting_balance_min', 2500))
+            smax = float(data.get('starting_balance_max', 12000))
+            starting_balance = round(random.uniform(smin, smax), 2)
+        else:
+            starting_balance = float(starting_balance)
+
+        # Convert raw rows into Transaction model objects, clamping each to
+        # the statement period so stray dates from the LLM don't break layout.
+        start_dt, end_dt = periods[0]
+        txns: list = []
+        for row in raw_txns:
+            try:
+                d = datetime.strptime(str(row.get('date', '')), '%Y-%m-%d').date()
+            except Exception:
+                continue
+            if d < start_dt:
+                d = start_dt
+            if d > end_dt:
+                d = end_dt
+            ttype = TransactionType.DEPOSIT if str(row.get('type', '')).lower() == 'deposit' else TransactionType.WITHDRAWAL
+            amount = float(row.get('amount', 0) or 0)
+            if amount <= 0:
+                continue
+            txns.append(Transaction(
+                date=d,
+                description=str(row.get('description', ''))[:120],
+                amount=round(amount, 2),
+                transaction_type=ttype
+            ))
+
+        if not txns:
+            return jsonify({'success': False, 'error': 'No valid transactions after parsing.'}), 400
+
+        txns.sort(key=lambda t: (t.date, t.is_withdrawal))
+
+        # Single period only — the LLM produces one block of transactions.
+        period = StatementPeriod(start_date=start_dt, end_date=end_dt)
+
+        # Recompute running balances the same way TransactionGenerator does.
+        balance = starting_balance
+        daily_ending = {}
+        for t in txns:
+            balance = balance + t.amount if t.is_deposit else balance - t.amount
+            daily_ending[t.date] = round(balance, 2)
+        for t in txns:
+            t.running_balance = daily_ending[t.date]
+        assigned = set()
+        for t in reversed(txns):
+            if t.date not in assigned:
+                assigned.add(t.date)
+            else:
+                t.running_balance = 0.0
+
+        summary = StatementSummary.from_transactions(txns, starting_balance)
+        statement = BankStatement(
+            account_holder=account_holder,
+            account_info=account_info,
+            period=period,
+            transactions=txns,
+            summary=summary
+        )
+
+        pdf_gen = StatementPDFGenerator(output_dir='output')
+        filepath = pdf_gen.generate(statement)
+
+        return jsonify({
+            'success': True,
+            'filepath': filepath,
+            'filename': os.path.basename(filepath),
+            'summary': {
+                'beginning_balance': f'${summary.beginning_balance:,.2f}',
+                'total_deposits': f'${summary.total_deposits:,.2f}',
+                'total_withdrawals': f'${summary.total_withdrawals:,.2f}',
+                'ending_balance': f'${summary.ending_balance:,.2f}',
+                'transaction_count': len(txns),
+                'pages': statement.page_count
+            }
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 def generate_account_number():

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RefreshCw, Download, FileText, CheckCircle2, AlertTriangle, Sparkles, Calendar } from 'lucide-react';
+import { RefreshCw, Download, FileText, CheckCircle2, AlertTriangle, Sparkles, Calendar, Loader2 } from 'lucide-react';
 
 interface StatementSummaryInfo {
   beginning_balance: string;
@@ -41,6 +41,13 @@ export const WellsFargoGenerator: React.FC = () => {
   const [generationSeed, setGenerationSeed] = useState('');
   const [startingBalanceMin, setStartingBalanceMin] = useState(2500);
   const [startingBalanceMax, setStartingBalanceMax] = useState(12000);
+
+  // LLM/AI transaction toggle for the ReportLab WF generator.
+  const [useAiTransactions, setUseAiTransactions] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('A typical small business month: a few POS deposits, card payouts out, rent, utilities, payroll, supplies.');
+  const [aiCount, setAiCount] = useState(12);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiTransactions, setAiTransactions] = useState<Array<{ date: string; description: string; type: 'deposit' | 'withdrawal'; amount: number }>>([]);
 
   // Status & loading states
   const [loading, setLoading] = useState(false);
@@ -124,10 +131,16 @@ export const WellsFargoGenerator: React.FC = () => {
     };
 
     try {
-      const res = await fetch('/api/bankstatement/generate-statement', {
+      const endpoint = useAiTransactions && aiTransactions.length > 0
+        ? '/api/bankstatement/generate-statement-from-transactions'
+        : '/api/bankstatement/generate-statement';
+      const finalPayload = useAiTransactions && aiTransactions.length > 0
+        ? { ...payload, transactions: aiTransactions }
+        : payload;
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(finalPayload)
       });
       
       if (!res.ok) {
@@ -348,6 +361,96 @@ export const WellsFargoGenerator: React.FC = () => {
                 <input className="input-field" value={generationSeed} onChange={e => setGenerationSeed(e.target.value)} placeholder="e.g. custom_seed_1" />
               </div>
             </div>
+          </div>
+
+          {/* Section 5: AI / LLM Transaction Generator */}
+          <div style={{
+            border: '1px solid var(--border-color)',
+            borderRadius: '8px',
+            padding: '0.85rem',
+            background: 'rgba(255,255,255,0.02)'
+          }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', marginBottom: '0.5rem' }}>
+              <input
+                type="checkbox"
+                checked={useAiTransactions}
+                onChange={e => setUseAiTransactions(e.target.checked)}
+                style={{ width: 'auto' }}
+              />
+              <Sparkles size={15} style={{ color: 'var(--accent-solid)' }} />
+              <strong style={{ fontSize: '0.95rem' }}>Use AI-generated transactions</strong>
+            </label>
+            <p style={{ fontSize: '0.8rem', opacity: 0.7, margin: '0 0 0.55rem' }}>
+              When enabled, the LLM produces a transaction list from your prompt and the PDF is rendered from those instead of the algorithmic generator. Uses the period dates above.
+            </p>
+            <textarea
+              className="input-field"
+              rows={3}
+              value={aiPrompt}
+              onChange={e => setAiPrompt(e.target.value)}
+              placeholder="Describe activity: POS deposits, card payouts, rent, utilities, payroll, supplies..."
+              style={{ width: '100%', resize: 'vertical', padding: '0.5rem', fontSize: '0.85rem', marginBottom: '0.5rem' }}
+            />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+              <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                Count
+                <input
+                  type="number"
+                  min={1}
+                  max={40}
+                  value={aiCount}
+                  onChange={e => setAiCount(Math.max(1, Math.min(40, parseInt(e.target.value) || 12)))}
+                  className="input-field"
+                  style={{ width: '70px', padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={async () => {
+                  if (aiLoading) return;
+                  setAiLoading(true);
+                  setError('');
+                  try {
+                    const periodPayload = periodMode === 'manual'
+                      ? { startDate, endDate }
+                      : { /* anchor-derived: let backend use the same period */ };
+                    const res = await fetch('/api/llm/generate-transactions', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        prompt: aiPrompt,
+                        count: aiCount,
+                        bankName: 'Wells Fargo',
+                        holderName: name || 'Account Holder',
+                        startBalance: startingBalanceMin,
+                        ...periodPayload
+                      })
+                    });
+                    const data = await res.json();
+                    if (!res.ok || !data.success) throw new Error(data.error || `Request failed (${res.status})`);
+                    setAiTransactions(data.transactions || []);
+                  } catch (err: unknown) {
+                    const msg = err instanceof Error ? err.message : 'Generation failed.';
+                    setError(msg);
+                  } finally {
+                    setAiLoading(false);
+                  }
+                }}
+                disabled={aiLoading}
+              >
+                {aiLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                {aiLoading ? 'Generating…' : 'Generate with AI'}
+              </button>
+              {aiTransactions.length > 0 && (
+                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>{aiTransactions.length} transactions ready</span>
+              )}
+            </div>
+            {useAiTransactions && aiTransactions.length === 0 && (
+              <p style={{ fontSize: '0.75rem', color: 'var(--danger, #e57373)', margin: '0.55rem 0 0' }}>
+                Enable + generate to populate, or compile will fall back to algorithmic mode.
+              </p>
+            )}
           </div>
 
           <button 
