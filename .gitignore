@@ -25,3 +25,19 @@ dist-ssr
 
 # gstack (global install)
 .amazonq/rules/gstack.md
+
+# Secrets — never commit env files or keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data stores (generated locally)
+users.json
+documents.json
+*.local.json
+
+# Windows cruft
+desktop.ini
+Thumbs.db

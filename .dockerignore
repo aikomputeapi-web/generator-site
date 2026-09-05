@@ -1,0 +1,14 @@
+node_modules
+npm-debug.log
+Dockerfile
+.dockerignore
+.git
+.gitignore
+.idea
+.vscode
+dist
+bankstatement/__pycache__
+bankstatement/**/__pycache__
+*.pyc
+*.md
+.env

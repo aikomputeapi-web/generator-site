@@ -339,7 +339,7 @@ def generate_account_number():
 
 def open_browser():
     """Open the web browser to the app."""
-    webbrowser.open('http://127.0.0.1:5000')
+    webbrowser.open('http://127.0.0.1:5001')
 
 
 # Ensure output directory always exists (needed on Render & local)
@@ -347,8 +347,8 @@ Path('output').mkdir(exist_ok=True)
 
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    is_local = port == 5000 and not os.environ.get('RENDER')
+    port = int(os.environ.get('PORT', 5001))
+    is_local = port == 5001 and not os.environ.get('RENDER')
 
     if is_local:
         # Only open browser when running locally
@@ -356,7 +356,7 @@ if __name__ == '__main__':
         print("\n" + "=" * 60)
         print("Bank Statement Generator - Web UI")
         print("=" * 60)
-        print("\nStarting server at http://127.0.0.1:5000")
+        print("\nStarting server at http://127.0.0.1:5001")
         print("Browser will open automatically...")
         print("\nPress Ctrl+C to stop the server\n")
 

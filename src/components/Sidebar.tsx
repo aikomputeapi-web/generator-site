@@ -97,8 +97,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             }}
           >
             <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-              System Core
-            </span>
+               Core
+             </span>
             {coreExpanded ? <Icons.ChevronDown size={12} /> : <Icons.ChevronRight size={12} />}
           </button>
           
@@ -154,9 +154,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 textAlign: 'left'
               }}
             >
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                Data Generators
-              </span>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+               Generators
+             </span>
               {generatorsExpanded ? <Icons.ChevronDown size={12} /> : <Icons.ChevronRight size={12} />}
             </button>
             
@@ -216,9 +216,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 textAlign: 'left'
               }}
             >
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                Automation Suites
-              </span>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+               Automation
+             </span>
               {registrationsExpanded ? <Icons.ChevronDown size={12} /> : <Icons.ChevronRight size={12} />}
             </button>
             
@@ -333,8 +333,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span style={{ color: '#10b981', fontWeight: 'bold' }}>ONLINE</span>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-          <span>Active Plugins:</span>
-          <span>{plugins.length} Loaded</span>
+          <span>Active Tools:</span>
+          <span>{plugins.length}</span>
         </div>
       </div>
     </aside>

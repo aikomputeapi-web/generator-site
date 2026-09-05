@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { plugins, getPluginById } from './plugins/registry';
-import { Menu, X, ArrowLeft, Terminal, AlertTriangle } from 'lucide-react';
+import { Menu, X, ArrowLeft, AlertTriangle } from 'lucide-react';
 import { useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { AdminDashboard } from './components/AdminDashboard';
@@ -130,48 +130,35 @@ function App() {
                 style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                 onClick={() => setActiveTab('dashboard')}
               >
-                <ArrowLeft size={14} /> Back to Dashboard
+                <ArrowLeft size={14} /> Back
               </button>
             )}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', fontSize: '0.85rem' }}>
-            {/* Quick system check */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-secondary)' }}>
-              <Terminal size={14} />
-              <span>Shell Console v1.0.4</span>
-            </div>
-            
-            {/* Custom alert banner for simulation mode */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.85rem' }}>
             {activeTab === 'account-registration-suite' && (
-              <div style={{ 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '0.35rem', 
-                color: '#f59e0b', 
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                color: '#f59e0b',
                 background: 'rgba(245, 158, 11, 0.08)',
                 padding: '0.2rem 0.5rem',
                 borderRadius: '4px'
               }}>
                 <AlertTriangle size={12} />
-                <span style={{ fontSize: '0.75rem' }}>Mock logs available</span>
+                <span style={{ fontSize: '0.75rem' }}>Mock</span>
               </div>
             )}
 
-            {/* User Profile Info */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', borderLeft: '1px solid var(--border-color)', paddingLeft: '1.5rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{currentUser?.username}</span>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Authorized Agent</span>
-              </div>
-              <button 
-                className="btn btn-secondary" 
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
-                onClick={logout}
-              >
-                Sign Out
-              </button>
-            </div>
+            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{currentUser?.username}</span>
+            <button
+              className="btn btn-secondary"
+              style={{ padding: '0.4rem 0.8rem', fontSize: '0.75rem' }}
+              onClick={logout}
+            >
+              Sign Out
+            </button>
           </div>
         </header>
 
@@ -190,12 +177,9 @@ function App() {
               {/* Header Title for specific active tool */}
               {activePlugin && (
                 <div className="no-print" style={{ marginBottom: '2rem' }}>
-                  <h1 style={{ fontSize: '1.75rem', fontWeight: 800, marginBottom: '0.25rem' }}>
+                  <h1 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0 }}>
                     {activePlugin.metadata.name}
                   </h1>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-                    {activePlugin.metadata.description}
-                  </p>
                 </div>
               )}
               

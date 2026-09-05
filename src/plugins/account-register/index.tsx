@@ -365,7 +365,6 @@ export const AccountRegisterSuite: React.FC = () => {
               <option value="skymail">SkyMail (CloudMail)</option>
               <option value="cloudmail">CloudMail (genToken)</option>
               <option value="cfworker">Self-Hosted CF Worker</option>
-              <option value="imap_catchall">IMAP Catchall Domain</option>
             </select>
           </div>
 
