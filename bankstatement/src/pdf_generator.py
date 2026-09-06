@@ -142,8 +142,9 @@ class StatementPDFGenerator:
         filename   = f"{holder_name}_Wells_Fargo_Statement_{stmt_month}_{stmt_year}_{now}.pdf"
         filepath = self.output_dir / filename
 
-        # Height reserved for the drawn header on pages 2+ (logo + rule + padding)
-        HEADER_RESERVE = 0.85 * inch
+        # Height reserved for the drawn header on pages 2+
+        # (logo + account number line + rule + padding)
+        HEADER_RESERVE = 1.05 * inch
 
         content_w = self.page_width - 2 * self.margin
         content_h = self.page_height - 2 * self.margin
@@ -604,6 +605,19 @@ class StatementPDFGenerator:
         logo_x = self.page_width - self.margin - logo_w
         logo_y = self.page_height - self.margin - logo_h
 
+        # --- Account number (top-right, directly under the logo) ---
+        # Matches Wells Fargo business/combined statement format which repeats
+        # the account number on every page.
+        if statement is not None:
+            acct_str = f"Account number: {statement.account_info.account_number}"
+            canvas_obj.setFont('Helvetica-Bold', 9)
+            canvas_obj.setFillColor(colors.black)
+            canvas_obj.drawRightString(
+                self.page_width - self.margin,
+                logo_y - 14,
+                acct_str,
+            )
+
         if self.logo_path.exists():
             canvas_obj.drawImage(
                 str(self.logo_path),
@@ -624,8 +638,8 @@ class StatementPDFGenerator:
                 'WELLS FARGO',
             )
 
-        # --- Horizontal rule below header ---
-        rule_y = self.page_height - self.margin - logo_h - 4
+        # --- Horizontal rule below header (below the account number line) ---
+        rule_y = logo_y - 22
         canvas_obj.setStrokeColor(colors.black)
         canvas_obj.setLineWidth(1.0)
         canvas_obj.line(self.margin, rule_y, self.page_width - self.margin, rule_y)
