@@ -412,9 +412,55 @@ export const WellsFargoGenerator: React.FC = () => {
                   setAiLoading(true);
                   setError('');
                   try {
-                    const periodPayload = periodMode === 'manual'
-                      ? { startDate, endDate }
-                      : { /* anchor-derived: let backend use the same period */ };
+                    // Compute the actual statement period client-side so the LLM
+                    // endpoint can spread transaction dates across it — mirroring
+                    // the Flask get_month_range / get_previous_months logic.
+                    const computePeriod = (): { startDate: string; endDate: string } => {
+                      if (periodMode === 'manual') {
+                        return { startDate, endDate };
+                      }
+                      const ay = parseInt(anchorYear);
+                      const am = parseInt(anchorMonth);
+                      const pad = (n: number) => String(n).padStart(2, '0');
+                      const lastDay = (y: number, m: number) => new Date(y, m, 0).getDate();
+                      if (periodMode === '90days') {
+                        const end = ay && am ? new Date(ay, am, 0) : new Date();
+                        const start = new Date(end);
+                        start.setDate(start.getDate() - 90);
+                        return {
+                          startDate: `${start.getFullYear()}-${pad(start.getMonth() + 1)}-${pad(start.getDate())}`,
+                          endDate: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`
+                        };
+                      }
+                      // 1month / 2months / 3months — anchor month is the latest.
+                      const numMonths = periodMode === '2months' ? 2 : periodMode === '3months' ? 3 : 1;
+                      let year = ay || new Date().getFullYear();
+                      let month = am || new Date().getMonth();
+                      if (!am) {
+                        // default to most recent complete month
+                        const t = new Date();
+                        year = t.getMonth() === 0 ? t.getFullYear() - 1 : t.getFullYear();
+                        month = t.getMonth() === 0 ? 12 : t.getMonth();
+                      }
+                      // advance to the anchor month
+                      for (let i = 1; i < numMonths; i++) {
+                        if (month === 12) { year += 1; month = 1; } else { month += 1; }
+                      }
+                      const endYear = year;
+                      const endMonth = month;
+                      const ed = lastDay(endYear, endMonth);
+                      // start of oldest month = numMonths back
+                      let sYear = endYear;
+                      let sMonth = endMonth;
+                      for (let i = 0; i < numMonths - 1; i++) {
+                        if (sMonth === 1) { sYear -= 1; sMonth = 12; } else { sMonth -= 1; }
+                      }
+                      return {
+                        startDate: `${sYear}-${pad(sMonth)}-01`,
+                        endDate: `${endYear}-${pad(endMonth)}-${pad(ed)}`
+                      };
+                    };
+                    const periodPayload = computePeriod();
                     const res = await fetch('/api/llm/generate-transactions', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },

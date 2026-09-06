@@ -502,6 +502,8 @@ app.post(
       "Return ONLY a JSON object — no prose, no code fence, no commentary — with the shape " +
       '{"transactions": [{"date":"YYYY-MM-DD","description":"string","type":"deposit|withdrawal","amount":number}]}. ' +
       `All dates MUST fall between ${startDate} and ${endDate} inclusive and be realistic for that period. ` +
+      `IMPORTANT: spread transaction dates across the ENTIRE period (${startDate} to ${endDate}) — ` +
+      "do NOT cluster them on a single day; distribute them across different days throughout the period. " +
       "Amounts are positive USD numbers with 2 decimals. Descriptions are concise merchant/memo names " +
       '(max ~80 chars). The type field is literally "deposit" or "withdrawal".';
 
