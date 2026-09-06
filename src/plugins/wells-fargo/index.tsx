@@ -392,8 +392,8 @@ export const WellsFargoGenerator: React.FC = () => {
               style={{ width: '100%', resize: 'vertical', padding: '0.5rem', fontSize: '0.85rem', marginBottom: '0.5rem' }}
             />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
-              <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                Count
+              <label title="Approx transactions per month. Auto-scales for multi-month modes (capped at 40 per request)." style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                Txns/month
                 <input
                   type="number"
                   min={1}
@@ -432,7 +432,10 @@ export const WellsFargoGenerator: React.FC = () => {
                           endDate: `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`
                         };
                       }
-                      // 1month / 2months / 3months — anchor month is the latest.
+                      // 1month / 2months / 3months — anchor month is the LATEST
+                      // month in the period (forward-incompatible loop removed:
+                      // the Flask get_previous_months(numMonths, anchor) returns
+                      // the N months ENDING at anchor, so endDate = anchor month).
                       const numMonths = periodMode === '2months' ? 2 : periodMode === '3months' ? 3 : 1;
                       let year = ay || new Date().getFullYear();
                       let month = am || new Date().getMonth();
@@ -442,14 +445,10 @@ export const WellsFargoGenerator: React.FC = () => {
                         year = t.getMonth() === 0 ? t.getFullYear() - 1 : t.getFullYear();
                         month = t.getMonth() === 0 ? 12 : t.getMonth();
                       }
-                      // advance to the anchor month
-                      for (let i = 1; i < numMonths; i++) {
-                        if (month === 12) { year += 1; month = 1; } else { month += 1; }
-                      }
                       const endYear = year;
                       const endMonth = month;
                       const ed = lastDay(endYear, endMonth);
-                      // start of oldest month = numMonths back
+                      // start of oldest month = numMonths back from anchor
                       let sYear = endYear;
                       let sMonth = endMonth;
                       for (let i = 0; i < numMonths - 1; i++) {
