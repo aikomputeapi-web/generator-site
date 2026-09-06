@@ -461,12 +461,18 @@ export const WellsFargoGenerator: React.FC = () => {
                       };
                     };
                     const periodPayload = computePeriod();
+                    // For multi-month modes, scale the requested count so each
+                    // month gets roughly the same density the user asked for.
+                    const scale = periodMode === '2months' ? 2
+                      : periodMode === '3months' ? 3
+                      : periodMode === '90days' ? 3
+                      : 1;
                     const res = await fetch('/api/llm/generate-transactions', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
-                        prompt: aiPrompt,
-                        count: aiCount,
+                        prompt: `${aiPrompt} (this covers a ${scale}-month period — spread transactions across all months)`,
+                        count: Math.min(40, aiCount * scale),
                         bankName: 'Wells Fargo',
                         holderName: name || 'Account Holder',
                         startBalance: startingBalanceMin,

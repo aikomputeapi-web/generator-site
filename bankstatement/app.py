@@ -396,32 +396,112 @@ def generate_statement_from_transactions():
         else:
             starting_balance = float(starting_balance)
 
-        # Convert raw rows into Transaction model objects, clamping each to
-        # the statement period so stray dates from the LLM don't break layout.
-        start_dt, end_dt = periods[0]
-        txns: list = []
+        # Convert raw rows into Transaction model objects. Dates are NOT
+        # clamped per-month here — they are partitioned into the matching
+        # period below so multi-month statements get one PDF per month.
+        all_txns: list = []
         for row in raw_txns:
             try:
                 d = datetime.strptime(str(row.get('date', '')), '%Y-%m-%d').date()
             except Exception:
                 continue
-            if d < start_dt:
-                d = start_dt
-            if d > end_dt:
-                d = end_dt
             ttype = TransactionType.DEPOSIT if str(row.get('type', '')).lower() == 'deposit' else TransactionType.WITHDRAWAL
             amount = float(row.get('amount', 0) or 0)
             if amount <= 0:
                 continue
-            txns.append(Transaction(
+            all_txns.append(Transaction(
                 date=d,
                 description=str(row.get('description', ''))[:120],
                 amount=round(amount, 2),
                 transaction_type=ttype
             ))
 
-        if not txns:
+        if not all_txns:
             return jsonify({'success': False, 'error': 'No valid transactions after parsing.'}), 400
+
+        pdf_gen = StatementPDFGenerator(output_dir='output')
+
+        # Multi-period (2months / 3months): render one statement per period,
+        # assigning each transaction to the period whose [start,end] contains
+        # its date. Balance rolls forward across periods (same shape as the
+        # algorithmic generate-statement route). Transactions with dates
+        # outside every period are dropped.
+        if len(periods) > 1:
+            statements_info = []
+            total_transactions = 0
+            total_pages = 0
+            current_balance = starting_balance
+
+            for start_date, end_date in periods:
+                period_txns = [
+                    t for t in all_txns
+                    if start_date <= t.date <= end_date
+                ]
+                period_txns.sort(key=lambda t: (t.date, t.is_withdrawal))
+
+                balance = current_balance
+                daily_ending = {}
+                for t in period_txns:
+                    balance = balance + t.amount if t.is_deposit else balance - t.amount
+                    daily_ending[t.date] = round(balance, 2)
+                for t in period_txns:
+                    t.running_balance = daily_ending[t.date]
+                assigned = set()
+                for t in reversed(period_txns):
+                    if t.date not in assigned:
+                        assigned.add(t.date)
+                    else:
+                        t.running_balance = 0.0
+
+                period = StatementPeriod(start_date=start_date, end_date=end_date)
+                summary = StatementSummary.from_transactions(period_txns, current_balance)
+                statement = BankStatement(
+                    account_holder=account_holder,
+                    account_info=account_info,
+                    period=period,
+                    transactions=period_txns,
+                    summary=summary
+                )
+                filepath = pdf_gen.generate(statement)
+
+                statements_info.append({
+                    'filename': os.path.basename(filepath),
+                    'period': f"{start_date.strftime('%b %Y')}",
+                    'transactions': len(period_txns),
+                    'pages': statement.page_count
+                })
+
+                total_transactions += len(period_txns)
+                total_pages += statement.page_count
+                # Ending balance becomes next month's starting balance.
+                current_balance = round(balance, 2)
+
+            return jsonify({
+                'success': True,
+                'statements': statements_info,
+                'totals': {
+                    'total_statements': len(statements_info),
+                    'total_transactions': total_transactions,
+                    'total_pages': total_pages
+                }
+            })
+
+        # Single-period path (1month / 90days / manual).
+        start_dt, end_dt = periods[0]
+        # Clamp stray dates into the single period.
+        txns: list = []
+        for t in all_txns:
+            d = t.date
+            if d < start_dt:
+                d = start_dt
+            if d > end_dt:
+                d = end_dt
+            txns.append(Transaction(
+                date=d,
+                description=t.description,
+                amount=t.amount,
+                transaction_type=t.transaction_type
+            ))
 
         txns.sort(key=lambda t: (t.date, t.is_withdrawal))
 
